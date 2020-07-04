@@ -100,6 +100,8 @@ class BinanceSocketManager(threading.Thread):
         context_factory = ssl.ClientContextFactory()
 
         self._conns[path] = connectWS(factory, context_factory)
+        import alog
+        alog.info(path)
         return path
 
     def start_depth_socket(self, symbol, callback, depth=None):

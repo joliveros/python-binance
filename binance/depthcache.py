@@ -2,6 +2,9 @@
 
 from operator import itemgetter
 import time
+import alog
+from datetime import datetime
+from dateutil.tz import tz
 
 from .websockets import BinanceSocketManager
 
@@ -19,6 +22,7 @@ class DepthCache(object):
         self._bids = {}
         self._asks = {}
         self.update_time = None
+        self.last_publish_time = None
 
     def add_bid(self, bid):
         """Add a bid to the cache
@@ -189,12 +193,13 @@ class DepthCacheManager(object):
             self._bm = BinanceSocketManager(self._client)
 
         self._conn_key = self._bm.start_depth_socket(self._symbol, self._depth_event)
+
         if not self._bm.is_alive():
             self._bm.start()
 
         # wait for some socket responses
         while not len(self._depth_message_buffer):
-            time.sleep(1)
+            time.sleep(0.001)
 
     def _depth_event(self, msg):
         """Handle a depth event
@@ -203,7 +208,6 @@ class DepthCacheManager(object):
         :return:
 
         """
-
         if 'e' in msg and msg['e'] == 'error':
             # close the socket
             self.close()
@@ -211,6 +215,8 @@ class DepthCacheManager(object):
             # notify the user by returning a None value
             if self._callback:
                 self._callback(None)
+
+        self.last_update_timestamp = datetime.utcnow().replace(tzinfo=tz.tzutc())
 
         if self._last_update_id is None:
             # Initial depth snapshot fetch not yet performed, buffer messages
@@ -241,7 +247,8 @@ class DepthCacheManager(object):
             self._depth_cache.add_ask(ask)
 
         # keeping update time
-        self._depth_cache.update_time = msg['E']
+        self._depth_cache.update_time = datetime.utcfromtimestamp(msg['E'] / 1000) \
+            .replace(tzinfo=tz.tzutc())
 
         # call the callback with the updated depth cache
         if self._callback:
